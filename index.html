@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Ascendia Penaltys</title>
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" async></script>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div id="ui">
+  <!-- MAIN MENU -->
+  <section id="screen-main" class="screen active">
+    <div class="main-left">
+      <div class="logo"><span class="l1">ASCENDIA</span><span class="l2">PENALTYS</span><span class="l3">CHAMPIONS NIGHT SHOOTOUT</span></div>
+      <nav class="menu">
+        <button class="btn primary" data-go="team">▶ Play Shootout</button>
+        <button class="btn" data-go="online">🌐 Online Match</button>
+        <button class="btn" data-go="player">⚽ My Player</button>
+        <button class="btn" data-go="builder">🛡 My Team</button>
+        <button class="btn" data-act="options">⚙ Options</button>
+      </nav>
+    </div>
+    <div class="cel-dock">
+      <div class="cel-head"><b>GOAL CELEBRATION</b> — pick one of the top 10
+        <label class="chk"><input type="checkbox" id="sig-toggle"> Use each player's signature</label><span id="main-note" class="note"></span></div>
+      <div id="cel-grid" class="cel-grid"></div>
+    </div>
+  </section>
+
+  <!-- TEAM SELECT -->
+  <section id="screen-team" class="screen">
+    <header class="topbar"><button class="btn small" data-go="main">← Back</button><h2>SELECT TEAMS</h2><span id="team-ai"></span></header>
+    <div class="team-cols">
+      <div class="col"><h3>YOUR TEAM</h3><div id="tl-a" class="team-list"></div></div>
+      <div class="col mid"><div id="team-preview"></div>
+        <button id="btn-kickoff" class="btn primary big">KICK OFF</button>
+        <div class="note">Shots per side, AI level and more are in <a href="#" id="team-opt-link">Options</a>.</div></div>
+      <div class="col"><h3>OPPONENT</h3><div id="tl-b" class="team-list"></div></div>
+    </div>
+  </section>
+
+  <!-- CREATE A PLAYER -->
+  <section id="screen-player" class="screen">
+    <header class="topbar"><button class="btn small" data-go="main">← Back</button><h2>CREATE A PLAYER</h2></header>
+    <div class="form-wrap">
+      <div class="panel form" id="player-form"></div>
+      <div class="panel saved"><h3>SAVED PLAYERS</h3><div id="player-saved"></div></div>
+    </div>
+  </section>
+
+  <!-- TEAM BUILDER -->
+  <section id="screen-builder" class="screen">
+    <header class="topbar"><button class="btn small" data-go="main">← Back</button><h2>BUILD YOUR TEAM</h2></header>
+    <div class="form-wrap">
+      <div class="panel form" id="builder-form"></div>
+      <div class="panel saved"><h3>YOUR TEAMS</h3><div id="builder-saved"></div></div>
+    </div>
+  </section>
+
+  <!-- ONLINE -->
+  <section id="screen-online" class="screen">
+    <header class="topbar"><button class="btn small" id="online-back">← Back</button><h2>ONLINE MATCH</h2></header>
+    <div class="center-panel panel online">
+      <div class="steps" id="on-steps"></div>
+      <div id="on-choose">
+        <p>Play a penalty shootout against a friend. Playing as <b id="online-team"></b> (<a href="#" data-go="team">change team</a>).</p>
+        <div class="choice">
+          <button class="card" id="btn-host"><span class="ic">🏟</span><b>Create a kick-off</b><small>Get a room code and share it</small></button>
+          <button class="card" id="btn-join-step"><span class="ic">🔑</span><b>Enter a code</b><small>Join a friend's kick-off</small></button>
+        </div>
+        <div class="note">Works for friends on the same Wi-Fi or anywhere else. Devices connect directly; the internet is only used to find each other.</div>
+      </div>
+      <div id="on-host" class="hidden">
+        <p>Give this code to your friend:</p>
+        <div class="bigcode" id="host-code">·····</div>
+        <div class="online-row"><button class="btn small" id="btn-copy">Copy code</button></div>
+        <ol class="todo"><li id="h1">Room created</li><li id="h2">Friend enters the code</li><li id="h3">Kick-off!</li></ol>
+      </div>
+      <div id="on-join" class="hidden">
+        <p>Type the 5-letter code from your friend:</p>
+        <div class="online-row"><input id="join-code" maxlength="5" placeholder="CODE" autocomplete="off"><button class="btn primary" id="btn-join">Join</button></div>
+        <ol class="todo"><li id="j1">Find the room</li><li id="j2">Connect to your friend</li><li id="j3">Kick-off!</li></ol>
+      </div>
+      <div id="online-status" class="online-status"></div>
+    </div>
+  </section>
+
+  <!-- RESULT -->
+  <section id="screen-result" class="screen"><div class="center-panel panel result">
+    <h2 id="res-title"></h2><div id="res-score"></div><div id="res-sub"></div>
+    <div class="online-row"><button class="btn primary" id="btn-rematch">Rematch</button><button class="btn" id="btn-menu">Main menu</button></div>
+  </div></section>
+</div>
+
+<!-- OPTIONS (modal) -->
+<div id="options" class="modal hidden"><div class="panel opt">
+  <h2>OPTIONS</h2>
+  <div class="row"><label>AI Level</label><div class="seg" id="opt-ai"></div></div>
+  <div class="row"><label>Shots per side</label><div class="seg" id="opt-shots"></div></div>
+  <div class="row"><label>Graphics</label><div class="seg" id="opt-gfx"></div></div>
+  <div class="row"><label>Volume</label><input type="range" id="opt-vol" min="0" max="100"></div>
+  <div class="row"><label>Soundtrack volume</label><input type="range" id="opt-music" min="0" max="100"></div>
+  <div class="row"><label>Crowd noise</label><label class="chk"><input type="checkbox" id="opt-crowd"> On</label></div>
+  <div class="row"><label>Aim assist (power sweet-spot + slight accuracy)</label><label class="chk"><input type="checkbox" id="opt-assist"> On</label></div>
+  <div class="row"><label>Camera shake</label><label class="chk"><input type="checkbox" id="opt-shake"> On</label></div>
+  <div class="row"><label>Cutscene skip</label><label class="chk"><input type="checkbox" id="opt-skip"> Allow skipping celebrations</label></div>
+  <div class="row end"><button class="btn primary" id="opt-close">Done</button></div>
+</div></div>
+
+<!-- PAUSE -->
+<div id="pause" class="modal hidden"><div class="panel opt"><h2>PAUSED</h2>
+  <div class="row end"><button class="btn primary" id="pause-resume">Resume</button><button class="btn" id="pause-opt">Options</button><button class="btn" id="pause-quit">Quit match</button></div></div></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="scoreboard"></div>
+  <div id="round-badge"></div>
+  <div id="banner"></div>
+  <div id="lower"></div>
+  <div id="reticle"></div>
+  <div id="zones"></div>
+  <div id="bottom">
+    <div id="kickbar"></div>
+    <div id="powerwrap"><div id="sweet"></div><div id="powerfill"></div><span>POWER</span></div>
+    <div id="hint"></div>
+  </div>
+  <div class="bar top"></div><div class="bar btm"></div>
+  <button id="btn-pause" title="Pause (Esc)">II</button>
+  <div id="cut-skip">Click / Space to skip</div>
+</div>
+
+<div id="loading">Loading Ascendia Penaltys…</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
