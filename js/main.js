@@ -302,7 +302,7 @@ function onlineHelp(what, e) {
   const t = (e && (e.type || e.message)) || 'unknown';
   if (t === 'no-room') return '⚠ Room not found. Check the code, and ask your friend to keep their screen open.';
   if (t === 'full') return '⚠ This room already has two players.';
-  return `⚠ Could not ${what} (${t}). Online play needs the game to be opened from queres.games. Check your connection and try again.`;
+  return `⚠ Could not ${what} (${t}). The online server may not be available yet, or your connection dropped. Try again in a moment.`;
 }
 const mark = (ids, active) => ids.forEach((id, i) => { const el = $('#' + id); el.className = i < active ? 'done' : i === active ? 'on' : ''; });
 $('#online-back').onclick = () => { if (net) { net.close(); net = null; } if (!$('#on-choose').classList.contains('hidden')) showScreen('main'); else onlineStep('choose'); };
