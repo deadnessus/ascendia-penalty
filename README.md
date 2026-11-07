@@ -13,13 +13,13 @@ python3 -m http.server 8000     # or any static server
 ```
 
 ES modules + an import map are used, so it must be served over http (not opened as `file://`).
-Online play loads PeerJS from a CDN, so the *first* load needs internet for that feature only.
+Online play needs the small server in `worker/` (Cloudflare Worker + Durable Object, WebSocket at `/online`). For local tests run it with `npx wrangler dev --config worker/wrangler.jsonc` and open the game with `?server=ws://127.0.0.1:8787/online`.
 
 ## Modes
 
 * **Play Shootout** – pick your club and the opponent (16 Champions League clubs + your own teams).
   You kick the odd rounds and **keep goal** in the others, exactly like a real shootout (best of 3/5/7, then sudden death).
-* **Online Match** – host a room, share the 5-letter code, friend joins. Peer-to-peer (WebRTC); each player kicks and keeps in turn.
+* **Online Match** – friends only: *Create a kick-off* gives a 5-letter code, the friend picks *Enter a code*. Each player kicks and keeps in turn. No chat and no personal data; see `worker/`.
 * **My Player** – create a player (look, number, Power / Finesse / Accuracy with a point budget, signature celebration)
   and add him to **any** real team or your own.
 * **My Team** – build a team with your own colours, a goalkeeper, and up to 8 **real players** picked from every club (or your created players).
@@ -70,7 +70,9 @@ js/figure.js      player rig + kick / keeper / celebration animations
 js/logic.js       deterministic shot physics, saves, AI
 js/stadium.js     pitch, goal, stands, crowd, ad boards
 js/audio.js       synthesised sound
-js/net.js         PeerJS wrapper
+js/net.js         WebSocket client for online play
+js/util.js        helpers shared by game and server
+worker/           online server (rooms by code; the server picks the seed and hides the shot from the keeper until both have chosen)
 js/main.js        UI, match flow, cameras, input, loop
 vendor/           three.js r160 (MIT)
 ```

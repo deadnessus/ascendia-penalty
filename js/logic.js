@@ -1,5 +1,5 @@
 import { KICKS, AI_LEVELS, keeperMove } from './data.js';
-import { clamp, lerp } from './figure.js';
+import { clamp, lerp } from './util.js';
 
 export const SPOT = { x: 0, y: 0.11, z: 11 };
 export const GOAL_W = 3.66, GOAL_H = 2.44, BALL_R = 0.11;

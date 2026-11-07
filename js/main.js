@@ -299,9 +299,10 @@ function onlineStep(n) {
   setOnlineStatus('');
 }
 function onlineHelp(what, e) {
-  const t = e && (e.type || e.message) || 'unknown';
-  const sandbox = location.hostname.endsWith('claude.ai') || location.hostname.endsWith('claudeusercontent.com') || ['timeout', 'network', 'server-error', 'socket-error', 'socket-closed'].includes(t);
-  return `⚠ Could not ${what} (${t}).` + (sandbox ? '<br>Online play needs a browser that allows peer-to-peer connections. It does not work inside the claude.ai preview. Open the game from its own web address (GitHub Pages or a local server) on both devices.' : '<br>Check the code and your connection, then try again.');
+  const t = (e && (e.type || e.message)) || 'unknown';
+  if (t === 'no-room') return '⚠ Room not found. Check the code, and ask your friend to keep their screen open.';
+  if (t === 'full') return '⚠ This room already has two players.';
+  return `⚠ Could not ${what} (${t}). Online play needs the game to be opened from queres.games. Check your connection and try again.`;
 }
 const mark = (ids, active) => ids.forEach((id, i) => { const el = $('#' + id); el.className = i < active ? 'done' : i === active ? 'on' : ''; });
 $('#online-back').onclick = () => { if (net) { net.close(); net = null; } if (!$('#on-choose').classList.contains('hidden')) showScreen('main'); else onlineStep('choose'); };
@@ -309,8 +310,8 @@ $('#btn-join-step').onclick = () => { sound.init(); onlineStep('join'); mark(['j
 $('#btn-copy').onclick = async () => { const c = $('#host-code').textContent; try { await navigator.clipboard.writeText(c); setOnlineStatus('Code copied!'); } catch { setOnlineStatus('Select the code and copy it.'); } };
 $('#btn-host').onclick = async () => {
   sound.init(); onlineStep('host'); $('#host-code').textContent = '·····'; mark(['h1', 'h2', 'h3'], 0);
-  if (!window.Peer) return setOnlineStatus('⚠ Online play needs the PeerJS library (internet connection required).');
   if (net) net.close(); net = new Net(); net.onclose = onlineDown;
+  if (!net.available) return setOnlineStatus('⚠ This browser does not support online play.');
   setOnlineStatus('Creating your room…');
   try {
     const code = await net.host();
@@ -329,8 +330,8 @@ $('#btn-host').onclick = async () => {
 $('#btn-join').onclick = async () => {
   sound.init();
   const code = $('#join-code').value.trim(); if (code.length < 4) return setOnlineStatus('Enter the code from your friend.');
-  if (!window.Peer) return setOnlineStatus('⚠ Online play needs the PeerJS library (internet connection required).');
   if (net) net.close(); net = new Net(); net.onclose = onlineDown;
+  if (!net.available) return setOnlineStatus('⚠ This browser does not support online play.');
   mark(['j1', 'j2', 'j3'], 0); setOnlineStatus('Looking for the room…');
   try {
     await net.join(code); mark(['j1', 'j2', 'j3'], 1); sendHello(); setOnlineStatus('Connected! Waiting for the host to start…');
@@ -525,13 +526,13 @@ async function takeKick(side, round) {
 
   // ----- get the shot
   let shot;
-  if (kCtl === 'human') { setHint(''); shot = await getHumanShot(); if (m.mode === 'online') net.send({ t: 'shot', shot }); }
+  if (kCtl === 'human') { setHint(''); shot = await getHumanShot(); if (m.mode === 'online') net.send({ t: 'shot', shot, kickerIdx: m.taken[side] % KT.players.length }); }
   else if (kCtl === 'ai') {
     if (keeperRole) { input.mode = 'keeper'; hud.zones.style.display = 'grid'; placeZones(); refreshZones(); }
     await sleep(2.6); shot = aiShot(kicker, opts.ai);
   } else {
     if (keeperRole) { input.mode = 'keeper'; hud.zones.style.display = 'grid'; placeZones(); refreshZones(); }
-    setHint('Waiting for the opponent to shoot…'); shot = (await net.take('shot')).shot;
+    setHint('Waiting for the opponent to shoot…'); const ss = await net.take('shotstart'); shot = { type: ss.type, ax: 0, ay: 1.2, power: 0.8, seed: 0 }; // aim stays hidden until the result
   }
   if (keeperRole) { input.mode = 'keeper'; hud.zones.style.display = 'grid'; placeZones(); refreshZones(); }
   setHint(keeperRole ? hud.hint.innerHTML : '');
@@ -549,16 +550,19 @@ async function takeKick(side, round) {
   await sleep(K.runup);
 
   // ----- contact
-  if (gCtl === 'human') {
+  let serverOutcome = null;
+  if (m.mode === 'online') {
+    if (gCtl === 'human') { const s = input.sel; const d0 = s ? { col: s.col, row: s.row, shift: input.shift } : { col: 0, row: 1, shift: false }; net.send({ t: 'dive', ...d0 }); dive = makeDive(d0.col, d0.row, d0.shift, HUMAN_START); play(gf, (tc) => keeperDive(dive, tc), T); }
+    const r = await net.take('result');      // the server reveals both choices at the same moment
+    shot = r.shot; serverOutcome = r.outcome; dive = makeDive(r.dive.col, r.dive.row, r.dive.shift, HUMAN_START);
+    if (gCtl !== 'human') play(gf, (tc) => keeperDive(dive, tc), T);
+  } else if (gCtl === 'human') {
     const s = input.sel; dive = s ? makeDive(s.col, s.row, input.shift, HUMAN_START) : makeDive(0, 1, false, 0.05);
-    if (m.mode === 'online') net.send({ t: 'dive', col: dive.col, row: dive.row, shift: dive.shift });
-    play(gf, (tc) => keeperDive(dive, tc), T);
-  } else if (gCtl === 'remote') {
-    const d = await net.take('dive'); dive = makeDive(d.col, d.row, d.shift, HUMAN_START);
     play(gf, (tc) => keeperDive(dive, tc), T);
   }
   input.mode = null; hud.zones.style.display = 'none'; setHint('');
   const res = resolveShot(shot, dive, kicker, gk);
+  if (serverOutcome) res.outcome = serverOutcome;
   if (DEBUG.force) res.outcome = DEBUG.force;
   launch(res, shot);
   setFollowCam(keeperRole, res);

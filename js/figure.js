@@ -2,9 +2,8 @@ import * as THREE from 'three';
 import { teamLuma } from './data.js';
 
 const S = Math.sin, C = Math.cos, PI = Math.PI;
-export const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
-export const lerp = (a, b, t) => a + (b - a) * t;
-export const ease = t => { t = clamp(t); return t * t * (3 - 2 * t); };
+import { clamp, lerp, ease } from './util.js';
+export { clamp, lerp, ease };
 const easeOut = t => 1 - (1 - clamp(t)) ** 2;
 
 // ---------- shared geometry / materials ----------

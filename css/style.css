@@ -126,3 +126,11 @@ body.cut #lower{bottom:calc(11vh + 20px)}
 .todo li.on{opacity:1;color:var(--y)}.todo li.on::before{content:"◌ "}.todo li.done{opacity:1;color:var(--g)}.todo li.done::before{content:"✔ "}
 .steps{font-size:12px;letter-spacing:3px;color:var(--p1);margin-bottom:6px;font-weight:700}
 @media(max-width:520px){.online .choice{grid-template-columns:1fr}.bigcode{font-size:48px;letter-spacing:8px}}
+/* short screens (phones in landscape, small laptops): keep the menu above the celebration dock */
+@media(max-height:620px){
+  .main-left{gap:1.2vh;padding-top:2vh}
+  .logo .l1{font-size:min(7vw,52px)}.logo .l2{font-size:min(5.6vw,40px)}.logo .l3{font-size:10px;margin-top:4px}
+  .menu{gap:5px}.menu .btn{padding:7px 16px;font-size:14px}
+  .cel-dock{padding:6px 2vw 8px}.cel-head{font-size:11px;margin-bottom:4px}.cel-head .note{display:none}
+  .cel-grid{gap:5px}.cel{padding:4px 3px}.cel .ic{font-size:17px}.cel .ds{display:none}.cel .nm{font-size:10px}
+}
