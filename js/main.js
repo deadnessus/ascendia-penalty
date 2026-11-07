@@ -19,7 +19,7 @@ const ABORT = Symbol('abort');
 const DEBUG = { force: null }; // dev hook used by automated tests
 
 // ---------------------------------------------------------------- state
-let opts = { ai: 2, shots: 5, gfx: 1, vol: 70, crowd: true, assist: true, shake: true, skip: true, ...store.get('opts', {}) };
+let opts = { music: 50, ai: 2, shots: 5, gfx: 1, vol: 70, crowd: true, assist: true, shake: true, skip: true, ...store.get('opts', {}) };
 let sel = { a: 'rma', b: 'mci', cel: 'siu', sig: true, ...store.get('sel', {}) };
 let myPlayers = store.get('players', []);
 let myTeams = store.get('teams', []);
@@ -36,7 +36,7 @@ const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 500);
 const stadium = buildStadium(scene, opts.gfx);
 const ball = { mesh: stadium.ball, pos: new V3(SPOT.x, SPOT.y, SPOT.z), vel: new V3(), mode: 'rest', flight: null, res: null, holder: null, inGoal: false };
 stadium.ball.position.copy(ball.pos);
-const sound = new Sound(); sound.vol = opts.vol / 100; sound.crowdOn = opts.crowd;
+const sound = new Sound(); sound.vol = opts.vol / 100; sound.crowdOn = opts.crowd; sound.musicVol = opts.music / 100;
 
 function applyGfx() {
   const pr = opts.gfx === 0 ? 1 : Math.min(window.devicePixelRatio || 1, opts.gfx === 1 ? 1.5 : 2);
@@ -133,7 +133,7 @@ function showScreen(id) {
   else { menuCamMode = 'main'; if (show) { dropFig(show.fig); show = null; } }
   if (id === 'team') renderTeamSelect();
   if (id === 'builder') { renderBuilder(); renderSavedTeams(); }
-  if (id === 'online') { $('#online-team').textContent = buildTeam(sel.a).name; setOnlineStatus(''); }
+  if (id === 'online') { $('#online-team').textContent = buildTeam(sel.a).name; onlineStep('choose'); }
   menuCam();
   if (id === 'main' || id === 'player') camCut();
 }
@@ -179,9 +179,10 @@ function openOptions() {
   seg($('#opt-ai'), AI_LEVELS.map(l => l.name), opts.ai, i => { opts.ai = i; saveAll(); });
   seg($('#opt-shots'), ['3', '5', '7'], [3, 5, 7].indexOf(opts.shots), i => { opts.shots = [3, 5, 7][i]; saveAll(); });
   seg($('#opt-gfx'), ['Low', 'Medium', 'High'], opts.gfx, i => { opts.gfx = i; saveAll(); applyGfx(); });
-  $('#opt-vol').value = opts.vol; $('#opt-crowd').checked = opts.crowd; $('#opt-assist').checked = opts.assist; $('#opt-shake').checked = opts.shake; $('#opt-skip').checked = opts.skip;
+  $('#opt-vol').value = opts.vol; $('#opt-music').value = opts.music; $('#opt-crowd').checked = opts.crowd; $('#opt-assist').checked = opts.assist; $('#opt-shake').checked = opts.shake; $('#opt-skip').checked = opts.skip;
   $('#options').classList.remove('hidden');
 }
+$('#opt-music').oninput = (e) => { opts.music = +e.target.value; sound.setMusicVol(opts.music / 100); saveAll(); };
 $('#opt-vol').oninput = (e) => { opts.vol = +e.target.value; sound.setVol(opts.vol / 100); saveAll(); };
 $('#opt-crowd').onchange = (e) => { opts.crowd = e.target.checked; sound.setCrowd(opts.crowd); saveAll(); };
 $('#opt-assist').onchange = (e) => { opts.assist = e.target.checked; saveAll(); updatePowerUI(); };
@@ -292,17 +293,26 @@ const setOnlineStatus = (h) => { $('#online-status').innerHTML = h; };
 function serializeTeam(t) { return JSON.parse(JSON.stringify({ id: t.id, name: t.name, short: t.short, kit: t.kit, shorts: t.shorts, trim: t.trim, players: t.players, gk: t.gk })); }
 function sendHello() { net.send({ t: 'hello', team: serializeTeam(buildTeam(sel.a)), pref: { sel: sel.cel, sig: sel.sig } }); }
 function onlineDown() { if (match && !match.dead && match.mode === 'online') { alert('Opponent disconnected.'); quitMatch(); } else setOnlineStatus('Connection closed.'); }
-$('#online-back').onclick = () => { if (net) { net.close(); net = null; } showScreen('main'); };
+function onlineStep(n) {
+  for (const id of ['choose', 'host', 'join']) $('#on-' + id).classList.toggle('hidden', id !== n);
+  $('#on-steps').textContent = n === 'choose' ? 'STEP 1 OF 3 · CHOOSE' : n === 'host' ? 'STEP 2 OF 3 · SHARE YOUR CODE' : 'STEP 2 OF 3 · ENTER THE CODE';
+  setOnlineStatus('');
+}
+const mark = (ids, active) => ids.forEach((id, i) => { const el = $('#' + id); el.className = i < active ? 'done' : i === active ? 'on' : ''; });
+$('#online-back').onclick = () => { if (net) { net.close(); net = null; } if (!$('#on-choose').classList.contains('hidden')) showScreen('main'); else onlineStep('choose'); };
+$('#btn-join-step').onclick = () => { sound.init(); onlineStep('join'); mark(['j1', 'j2', 'j3'], -1); $('#join-code').focus(); };
+$('#btn-copy').onclick = async () => { const c = $('#host-code').textContent; try { await navigator.clipboard.writeText(c); setOnlineStatus('Code copied!'); } catch { setOnlineStatus('Select the code and copy it.'); } };
 $('#btn-host').onclick = async () => {
-  sound.init();
+  sound.init(); onlineStep('host'); $('#host-code').textContent = '·····'; mark(['h1', 'h2', 'h3'], 0);
   if (!window.Peer) return setOnlineStatus('⚠ Online play needs the PeerJS library (internet connection required).');
   if (net) net.close(); net = new Net(); net.onclose = onlineDown;
-  setOnlineStatus('Creating room…');
+  setOnlineStatus('Creating your room…');
   try {
     const code = await net.host();
-    setOnlineStatus(`Room code: <b style="font-size:28px;letter-spacing:6px">${code}</b><br>Share it with your friend. Waiting for opponent…`);
+    $('#host-code').textContent = code; mark(['h1', 'h2', 'h3'], 1);
+    setOnlineStatus('Waiting for your friend to enter the code…');
     net.onconnect = async () => {
-      setOnlineStatus('Opponent connected! Starting…'); sendHello();
+      mark(['h1', 'h2', 'h3'], 2); setOnlineStatus('Friend connected! Starting…'); sendHello();
       const h = await net.take('hello');
       const mine = buildTeam(sel.a); mine.celPref = { sel: sel.cel, sig: sel.sig };
       const theirs = h.team; theirs.celPref = h.pref;
@@ -313,18 +323,19 @@ $('#btn-host').onclick = async () => {
 };
 $('#btn-join').onclick = async () => {
   sound.init();
-  const code = $('#join-code').value.trim(); if (code.length < 4) return setOnlineStatus('Enter the room code from your friend.');
+  const code = $('#join-code').value.trim(); if (code.length < 4) return setOnlineStatus('Enter the code from your friend.');
   if (!window.Peer) return setOnlineStatus('⚠ Online play needs the PeerJS library (internet connection required).');
   if (net) net.close(); net = new Net(); net.onclose = onlineDown;
-  setOnlineStatus('Connecting…');
+  mark(['j1', 'j2', 'j3'], 0); setOnlineStatus('Looking for the room…');
   try {
-    await net.join(code); sendHello(); setOnlineStatus('Connected! Waiting for host…');
-    const h = await net.take('hello'); const s = await net.take('start');
+    await net.join(code); mark(['j1', 'j2', 'j3'], 1); sendHello(); setOnlineStatus('Connected! Waiting for the host to start…');
+    const h = await net.take('hello'); const s = await net.take('start'); mark(['j1', 'j2', 'j3'], 2);
     const mine = buildTeam(sel.a); mine.celPref = { sel: sel.cel, sig: sel.sig };
     const theirs = h.team; theirs.celPref = h.pref;
     startMatch({ teams: [theirs, mine], mode: 'online', mySide: 1, shots: s.shots });
-  } catch (e) { setOnlineStatus('Could not join: ' + (e.type || e.message)); }
+  } catch (e) { mark(['j1', 'j2', 'j3'], -1); setOnlineStatus('Could not join: ' + (e.type || e.message) + '. Check the code and try again.'); }
 };
+$('#join-code').oninput = (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); };
 
 // ---------------------------------------------------------------- HUD helpers
 const hud = { banner: $('#banner'), lower: $('#lower'), reticle: $('#reticle'), zones: $('#zones'), kickbar: $('#kickbar'), power: $('#powerwrap'), hint: $('#hint') };
@@ -430,7 +441,7 @@ function startMatch(cfg) {
   if (show) { dropFig(show.fig); show = null; }
   stadium.setCrowdColors(match.teams[0].kit, match.teams[1].kit);
   buildZones(); updatePowerUI();
-  sound.init(); sound.setVol(opts.vol / 100); sound.setCrowd(opts.crowd);
+  sound.init(); sound.setVol(opts.vol / 100); sound.setCrowd(opts.crowd); sound.setMusicMode('match');
   const m = match;
   runShootout().catch(e => { if (e !== ABORT) { console.error(e); } });
   return m;
@@ -440,7 +451,7 @@ function quitMatch() {
   if (net) { net.close(); net = null; }
   if (input.rej) { input.mode = null; }
   input.mode = null; showKickUI(false); hud.zones.style.display = 'none'; hud.lower.classList.remove('show'); document.body.classList.remove('cut');
-  clearActors(); resetBall(); showScreen('main'); match = null;
+  clearActors(); resetBall(); sound.setMusicMode('menu'); showScreen('main'); match = null;
 }
 let kf = null, gf = null, rf = null;
 function clearActors() { dropFig(kf); dropFig(gf); dropFig(rf); kf = gf = rf = null; }
@@ -470,7 +481,7 @@ async function finish(w) {
   $('#res-score').textContent = `${m.teams[0].short} ${m.score[0]} – ${m.score[1]} ${m.teams[1].short}`;
   $('#res-sub').textContent = `${m.teams[w].name} win on penalties.`;
   $('#btn-rematch').style.display = m.mode === 'cpu' ? '' : 'none';
-  $('#hud').classList.add('hidden'); $('#screen-result').classList.add('active');
+  $('#hud').classList.add('hidden'); $('#screen-result').classList.add('active'); sound.setMusicMode('menu');
   sound.roar(won ? 1.3 : 0.5);
   // show a trophy-moment on the 3D stage: winners celebrate
   clearActors(); resetBall();
@@ -708,6 +719,8 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+addEventListener('pointerdown', () => sound.init(), { once: true });
+addEventListener('keydown', () => sound.init(), { once: true });
 // ---------------------------------------------------------------- boot
 applyGfx(); menuCam(); showScreen('main'); camCut();
 requestAnimationFrame(frame);

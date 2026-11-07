@@ -64,13 +64,28 @@
   <!-- ONLINE -->
   <section id="screen-online" class="screen">
     <header class="topbar"><button class="btn small" id="online-back">← Back</button><h2>ONLINE MATCH</h2></header>
-    <div class="center-panel panel">
-      <p>Play a penalty shootout against a friend, peer-to-peer. You each use the team you selected on the <b>Play Shootout</b> screen (including your own created players).</p>
-      <div class="online-row"><button class="btn primary" id="btn-host">Host a match</button>
-        <span class="or">or</span>
-        <input id="join-code" maxlength="5" placeholder="ROOM CODE"><button class="btn" id="btn-join">Join</button></div>
+    <div class="center-panel panel online">
+      <div class="steps" id="on-steps"></div>
+      <div id="on-choose">
+        <p>Play a penalty shootout against a friend. Playing as <b id="online-team"></b> (<a href="#" data-go="team">change team</a>).</p>
+        <div class="choice">
+          <button class="card" id="btn-host"><span class="ic">🏟</span><b>Create a kick-off</b><small>Get a room code and share it</small></button>
+          <button class="card" id="btn-join-step"><span class="ic">🔑</span><b>Enter a code</b><small>Join a friend's kick-off</small></button>
+        </div>
+        <div class="note">Works for friends on the same Wi-Fi or anywhere else. Devices connect directly; the internet is only used to find each other.</div>
+      </div>
+      <div id="on-host" class="hidden">
+        <p>Give this code to your friend:</p>
+        <div class="bigcode" id="host-code">·····</div>
+        <div class="online-row"><button class="btn small" id="btn-copy">Copy code</button></div>
+        <ol class="todo"><li id="h1">Room created</li><li id="h2">Friend enters the code</li><li id="h3">Kick-off!</li></ol>
+      </div>
+      <div id="on-join" class="hidden">
+        <p>Type the 5-letter code from your friend:</p>
+        <div class="online-row"><input id="join-code" maxlength="5" placeholder="CODE" autocomplete="off"><button class="btn primary" id="btn-join">Join</button></div>
+        <ol class="todo"><li id="j1">Find the room</li><li id="j2">Connect to your friend</li><li id="j3">Kick-off!</li></ol>
+      </div>
       <div id="online-status" class="online-status"></div>
-      <div class="note">Your team: <b id="online-team"></b> — <a href="#" data-go="team">change</a></div>
     </div>
   </section>
 
@@ -88,6 +103,7 @@
   <div class="row"><label>Shots per side</label><div class="seg" id="opt-shots"></div></div>
   <div class="row"><label>Graphics</label><div class="seg" id="opt-gfx"></div></div>
   <div class="row"><label>Volume</label><input type="range" id="opt-vol" min="0" max="100"></div>
+  <div class="row"><label>Soundtrack volume</label><input type="range" id="opt-music" min="0" max="100"></div>
   <div class="row"><label>Crowd noise</label><label class="chk"><input type="checkbox" id="opt-crowd"> On</label></div>
   <div class="row"><label>Aim assist (power sweet-spot + slight accuracy)</label><label class="chk"><input type="checkbox" id="opt-assist"> On</label></div>
   <div class="row"><label>Camera shake</label><label class="chk"><input type="checkbox" id="opt-shake"> On</label></div>

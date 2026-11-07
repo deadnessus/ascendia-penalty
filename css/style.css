@@ -116,3 +116,13 @@ body.cut .bar{height:11vh}body.cut #scoreboard,body.cut #bottom,body.cut #round-
 body.cut #lower{bottom:calc(11vh + 20px)}
 #btn-pause{position:absolute;top:16px;right:16px;pointer-events:auto;width:40px;height:40px;border-radius:50%;border:1px solid rgba(120,160,255,.5);background:rgba(6,12,34,.8);color:#fff;font-weight:900;cursor:pointer}
 @media(max-width:700px){.team-cols{grid-template-columns:1fr}.col.mid{order:-1}.form-wrap{grid-template-columns:1fr}.form-wrap .saved{grid-column:1}.sb{min-width:230px}.kb{padding:6px 8px;font-size:11px}}
+
+.online .choice{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}
+.online .card{background:rgba(0,0,0,.35);border:1px solid rgba(120,160,255,.4);border-radius:12px;padding:18px 12px;color:var(--ink);cursor:pointer;display:flex;flex-direction:column;gap:6px;align-items:center;font:inherit;transition:.15s}
+.online .card:hover{border-color:var(--p1);box-shadow:0 0 18px rgba(49,224,255,.4);transform:translateY(-3px)}
+.online .card .ic{font-size:34px}.online .card b{font-size:16px;text-transform:uppercase;font-style:italic;letter-spacing:1px}.online .card small{opacity:.7}
+.bigcode{font-size:64px;font-weight:900;letter-spacing:14px;text-align:center;color:var(--y);text-shadow:0 0 24px rgba(255,210,63,.5);padding:10px 0 10px 14px;user-select:all}
+.todo{list-style:none;padding:0;margin:10px 0;display:grid;gap:6px}.todo li{padding:8px 12px;border-radius:8px;background:rgba(0,0,0,.3);opacity:.55}.todo li::before{content:"○ "}
+.todo li.on{opacity:1;color:var(--y)}.todo li.on::before{content:"◌ "}.todo li.done{opacity:1;color:var(--g)}.todo li.done::before{content:"✔ "}
+.steps{font-size:12px;letter-spacing:3px;color:var(--p1);margin-bottom:6px;font-weight:700}
+@media(max-width:520px){.online .choice{grid-template-columns:1fr}.bigcode{font-size:48px;letter-spacing:8px}}
