@@ -298,6 +298,11 @@ function onlineStep(n) {
   $('#on-steps').textContent = n === 'choose' ? 'STEP 1 OF 3 · CHOOSE' : n === 'host' ? 'STEP 2 OF 3 · SHARE YOUR CODE' : 'STEP 2 OF 3 · ENTER THE CODE';
   setOnlineStatus('');
 }
+function onlineHelp(what, e) {
+  const t = e && (e.type || e.message) || 'unknown';
+  const sandbox = location.hostname.endsWith('claude.ai') || location.hostname.endsWith('claudeusercontent.com') || ['timeout', 'network', 'server-error', 'socket-error', 'socket-closed'].includes(t);
+  return `⚠ Could not ${what} (${t}).` + (sandbox ? '<br>Online play needs a browser that allows peer-to-peer connections. It does not work inside the claude.ai preview. Open the game from its own web address (GitHub Pages or a local server) on both devices.' : '<br>Check the code and your connection, then try again.');
+}
 const mark = (ids, active) => ids.forEach((id, i) => { const el = $('#' + id); el.className = i < active ? 'done' : i === active ? 'on' : ''; });
 $('#online-back').onclick = () => { if (net) { net.close(); net = null; } if (!$('#on-choose').classList.contains('hidden')) showScreen('main'); else onlineStep('choose'); };
 $('#btn-join-step').onclick = () => { sound.init(); onlineStep('join'); mark(['j1', 'j2', 'j3'], -1); $('#join-code').focus(); };
@@ -319,7 +324,7 @@ $('#btn-host').onclick = async () => {
       net.send({ t: 'start', shots: opts.shots });
       startMatch({ teams: [mine, theirs], mode: 'online', mySide: 0, shots: opts.shots });
     };
-  } catch (e) { setOnlineStatus('Could not create a room: ' + (e.type || e.message)); }
+  } catch (e) { setOnlineStatus(onlineHelp('create a room', e)); }
 };
 $('#btn-join').onclick = async () => {
   sound.init();
@@ -333,7 +338,7 @@ $('#btn-join').onclick = async () => {
     const mine = buildTeam(sel.a); mine.celPref = { sel: sel.cel, sig: sel.sig };
     const theirs = h.team; theirs.celPref = h.pref;
     startMatch({ teams: [theirs, mine], mode: 'online', mySide: 1, shots: s.shots });
-  } catch (e) { mark(['j1', 'j2', 'j3'], -1); setOnlineStatus('Could not join: ' + (e.type || e.message) + '. Check the code and try again.'); }
+  } catch (e) { mark(['j1', 'j2', 'j3'], -1); setOnlineStatus(onlineHelp('join', e)); }
 };
 $('#join-code').oninput = (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); };
 

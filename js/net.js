@@ -10,11 +10,12 @@ export class Net {
   }
   host() {
     return new Promise((res, rej) => {
+      const to = setTimeout(() => rej(Object.assign(new Error('timeout'), { type: 'timeout' })), 12000);
       const tryOnce = (n) => {
         const code = Array.from({ length: 5 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
         const p = new window.Peer('ascendia-pen-' + code);
-        p.on('open', () => { this.peer = p; p.on('connection', (c) => { c.on('open', () => { this._attach(c); this.onconnect && this.onconnect(); }); }); res(code); });
-        p.on('error', (e) => { if (e.type === 'unavailable-id' && n < 4) tryOnce(n + 1); else rej(e); });
+        p.on('open', () => { this.peer = p; p.on('connection', (c) => { c.on('open', () => { this._attach(c); this.onconnect && this.onconnect(); }); }); clearTimeout(to); res(code); });
+        p.on('error', (e) => { if (e.type === 'unavailable-id' && n < 4) tryOnce(n + 1); else { clearTimeout(to); rej(e); } });
       };
       tryOnce(0);
     });
