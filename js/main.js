@@ -3,7 +3,7 @@ import { TEAMS, ALL_PLAYERS, ALL_KEEPERS, KICKS, CELEBRATIONS, AI_LEVELS, SKIN_T
 import { makeFigure, setPose, disposeFigure, idlePose, standHips, keeperReady, keeperDive, keeperCheer, sadPose, hipsPose, refPose, kickAnim, CEL, CEL_DUR, clamp, lerp, ease } from './figure.js';
 import { buildStadium } from './stadium.js';
 import { Sound } from './audio.js';
-import { Net } from './net.js';
+import { Net, ensurePeer } from './net.js';
 import { SPOT, kickOf, resolveShot, aiShot, aiDive, makeDive } from './logic.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -133,7 +133,7 @@ function showScreen(id) {
   else { menuCamMode = 'main'; if (show) { dropFig(show.fig); show = null; } }
   if (id === 'team') renderTeamSelect();
   if (id === 'builder') { renderBuilder(); renderSavedTeams(); }
-  if (id === 'online') { $('#online-team').textContent = buildTeam(sel.a).name; onlineStep('choose'); }
+  if (id === 'online') { $('#online-team').textContent = buildTeam(sel.a).name; onlineStep('choose'); ensurePeer().catch(() => {}); }
   menuCam();
   if (id === 'main' || id === 'player') camCut();
 }
@@ -300,46 +300,77 @@ function onlineStep(n) {
 }
 function onlineHelp(what, e) {
   const t = e && (e.type || e.message) || 'unknown';
-  const sandbox = location.hostname.endsWith('claude.ai') || location.hostname.endsWith('claudeusercontent.com') || ['timeout', 'network', 'server-error', 'socket-error', 'socket-closed'].includes(t);
-  return `⚠ Could not ${what} (${t}).` + (sandbox ? '<br>Online play needs a browser that allows peer-to-peer connections. It does not work inside the claude.ai preview. Open the game from its own web address (GitHub Pages or a local server) on both devices.' : '<br>Check the code and your connection, then try again.');
+  const embedded = location.protocol === 'file:' || location.hostname.endsWith('claude.ai') || location.hostname.endsWith('claudeusercontent.com');
+  const retry = ' <button class="btn small" id="btn-online-retry">Try again</button>';
+  let tip;
+  if (location.protocol === 'file:') tip = 'The game was opened as a file. Run it from a web address (GitHub Pages or a local server) on both devices.';
+  else if (t === 'library') tip = 'The online module could not be loaded. Reload the page and try again.';
+  else if (t === 'browser-incompatible') tip = 'This browser does not support peer-to-peer play (WebRTC). Use an up-to-date Chrome, Edge, Firefox or Safari.';
+  else if (t === 'peer-unavailable') tip = 'No room with that code was found. Check the code and make sure your friend still has the room screen open.';
+  else if (embedded) tip = 'Online play does not work inside the claude.ai preview. Open the game from its own web address (GitHub Pages or a local server) on both devices.';
+  else if (['network', 'server-error', 'socket-error', 'socket-closed', 'timeout', 'disconnected'].includes(t)) tip = 'The matchmaking server could not be reached (it may be busy, or blocked by this network / an ad-blocker / a VPN). Wait a few seconds and try again, or switch network (e.g. Wi-Fi ↔ mobile data).';
+  else tip = 'Check your connection and try again.';
+  return `⚠ Could not ${what} <small>(${t})</small>.<br>${tip}${retry}`;
+}
+function netStatus(base) {
+  return (kind, n, total) => {
+    if (kind === 'retry') setOnlineStatus(`${base} (attempt ${n} of ${total})…`);
+    else if (kind === 'reconnecting' && !(net && net.connected)) setOnlineStatus('Connection to the matchmaking server dropped, reconnecting…');
+    else if (kind === 'online' && !(net && net.connected) && /^[A-Z0-9]{5}$/.test($('#host-code').textContent) && !$('#on-host').classList.contains('hidden')) setOnlineStatus('Waiting for your friend to enter the code…');
+  };
 }
 const mark = (ids, active) => ids.forEach((id, i) => { const el = $('#' + id); el.className = i < active ? 'done' : i === active ? 'on' : ''; });
 $('#online-back').onclick = () => { if (net) { net.close(); net = null; } if (!$('#on-choose').classList.contains('hidden')) showScreen('main'); else onlineStep('choose'); };
 $('#btn-join-step').onclick = () => { sound.init(); onlineStep('join'); mark(['j1', 'j2', 'j3'], -1); $('#join-code').focus(); };
 $('#btn-copy').onclick = async () => { const c = $('#host-code').textContent; try { await navigator.clipboard.writeText(c); setOnlineStatus('Code copied!'); } catch { setOnlineStatus('Select the code and copy it.'); } };
-$('#btn-host').onclick = async () => {
+async function hostRoom() {
   sound.init(); onlineStep('host'); $('#host-code').textContent = '·····'; mark(['h1', 'h2', 'h3'], 0);
-  if (!window.Peer) return setOnlineStatus('⚠ Online play needs the PeerJS library (internet connection required).');
-  if (net) net.close(); net = new Net(); net.onclose = onlineDown;
+  if (net) net.close(); const me = net = new Net(); net.onclose = onlineDown; net.onstatus = netStatus('Creating your room');
   setOnlineStatus('Creating your room…');
   try {
-    const code = await net.host();
+    const code = await me.host();
+    if (net !== me) return;
     $('#host-code').textContent = code; mark(['h1', 'h2', 'h3'], 1);
     setOnlineStatus('Waiting for your friend to enter the code…');
-    net.onconnect = async () => {
+    me.onconnect = async () => {
       mark(['h1', 'h2', 'h3'], 2); setOnlineStatus('Friend connected! Starting…'); sendHello();
-      const h = await net.take('hello');
+      const h = await me.take('hello');
+      if (net !== me) return;
       const mine = buildTeam(sel.a); mine.celPref = { sel: sel.cel, sig: sel.sig };
       const theirs = h.team; theirs.celPref = h.pref;
-      net.send({ t: 'start', shots: opts.shots });
+      me.send({ t: 'start', shots: opts.shots });
       startMatch({ teams: [mine, theirs], mode: 'online', mySide: 0, shots: opts.shots });
     };
-  } catch (e) { setOnlineStatus(onlineHelp('create a room', e)); }
-};
-$('#btn-join').onclick = async () => {
+  } catch (e) {
+    if (net !== me) return;
+    mark(['h1', 'h2', 'h3'], -1); setOnlineStatus(onlineHelp('create a room', e));
+    const b = $('#btn-online-retry'); if (b) b.onclick = hostRoom;
+  }
+}
+$('#btn-host').onclick = hostRoom;
+async function joinRoom() {
   sound.init();
-  const code = $('#join-code').value.trim(); if (code.length < 4) return setOnlineStatus('Enter the code from your friend.');
-  if (!window.Peer) return setOnlineStatus('⚠ Online play needs the PeerJS library (internet connection required).');
-  if (net) net.close(); net = new Net(); net.onclose = onlineDown;
+  const code = $('#join-code').value.trim(); if (code.length < 5) return setOnlineStatus('Enter the 5-letter code from your friend.');
+  if (net) net.close(); const me = net = new Net(); net.onclose = onlineDown; net.onstatus = netStatus('Looking for the room');
   mark(['j1', 'j2', 'j3'], 0); setOnlineStatus('Looking for the room…');
   try {
-    await net.join(code); mark(['j1', 'j2', 'j3'], 1); sendHello(); setOnlineStatus('Connected! Waiting for the host to start…');
-    const h = await net.take('hello'); const s = await net.take('start'); mark(['j1', 'j2', 'j3'], 2);
+    await me.join(code);
+    if (net !== me) return;
+    mark(['j1', 'j2', 'j3'], 1); sendHello(); setOnlineStatus('Connected! Waiting for the host to start…');
+    const h = await me.take('hello'); const s = await me.take('start');
+    if (net !== me) return;
+    mark(['j1', 'j2', 'j3'], 2);
     const mine = buildTeam(sel.a); mine.celPref = { sel: sel.cel, sig: sel.sig };
     const theirs = h.team; theirs.celPref = h.pref;
     startMatch({ teams: [theirs, mine], mode: 'online', mySide: 1, shots: s.shots });
-  } catch (e) { mark(['j1', 'j2', 'j3'], -1); setOnlineStatus(onlineHelp('join', e)); }
-};
+  } catch (e) {
+    if (net !== me) return;
+    mark(['j1', 'j2', 'j3'], -1); setOnlineStatus(onlineHelp('join', e));
+    const b = $('#btn-online-retry'); if (b) b.onclick = joinRoom;
+  }
+}
+$('#btn-join').onclick = joinRoom;
+$('#join-code').onkeydown = (e) => { if (e.key === 'Enter') joinRoom(); };
 $('#join-code').oninput = (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); };
 
 // ---------------------------------------------------------------- HUD helpers

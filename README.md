@@ -13,7 +13,10 @@ python3 -m http.server 8000     # or any static server
 ```
 
 ES modules + an import map are used, so it must be served over http (not opened as `file://`).
-Online play loads PeerJS from a CDN, so the *first* load needs internet for that feature only.
+Online play uses PeerJS (bundled in `vendor/`) and the free public PeerJS matchmaking server, so both players need internet.
+If creating a room fails, the game retries automatically and shows a *Try again* button with the reason. Networks, ad-blockers
+or VPNs that block `0.peerjs.com` will stop online play; to use your own PeerJS server set
+`window.ASCENDIA_PEER = { host, port, path, secure }` before the game loads.
 
 ## Modes
 
@@ -72,5 +75,5 @@ js/stadium.js     pitch, goal, stands, crowd, ad boards
 js/audio.js       synthesised sound
 js/net.js         PeerJS wrapper
 js/main.js        UI, match flow, cameras, input, loop
-vendor/           three.js r160 (MIT)
+vendor/           three.js r160 (MIT), PeerJS 1.5.4 (MIT)
 ```
