@@ -78,11 +78,27 @@
         <p>Give this code to your friend:</p>
         <div class="bigcode" id="host-code">·····</div>
         <div class="online-row"><button class="btn small" id="btn-copy">Copy code</button></div>
+        <details class="manual" id="host-manual"><summary>Can't connect? Play without a server</summary>
+          <p>1) Send this code to your friend (WhatsApp, etc.):</p>
+          <textarea id="mh-offer" readonly rows="3" placeholder="Press the button below…"></textarea>
+          <div class="online-row"><button class="btn small" id="mh-make">Make my code</button><button class="btn small" id="mh-copy">Copy</button></div>
+          <p>2) Paste the code your friend sends back:</p>
+          <textarea id="mh-answer" rows="3" placeholder="Paste your friend's code here"></textarea>
+          <div class="online-row"><button class="btn primary small" id="mh-go">Connect</button></div>
+        </details>
         <ol class="todo"><li id="h1">Room created</li><li id="h2">Friend enters the code</li><li id="h3">Kick-off!</li></ol>
       </div>
       <div id="on-join" class="hidden">
         <p>Type the 5-letter code from your friend:</p>
         <div class="online-row"><input id="join-code" maxlength="5" placeholder="CODE" autocomplete="off"><button class="btn primary" id="btn-join">Join</button></div>
+        <details class="manual" id="join-manual"><summary>Can't connect? Play without a server</summary>
+          <p>1) Paste the code your friend (host) sent you:</p>
+          <textarea id="mj-offer" rows="3" placeholder="Paste the host's code here"></textarea>
+          <div class="online-row"><button class="btn primary small" id="mj-make">Make my reply</button></div>
+          <p>2) Send this reply back to the host:</p>
+          <textarea id="mj-answer" readonly rows="3" placeholder="Your reply code appears here"></textarea>
+          <div class="online-row"><button class="btn small" id="mj-copy">Copy</button></div>
+        </details>
         <ol class="todo"><li id="j1">Find the room</li><li id="j2">Connect to your friend</li><li id="j3">Kick-off!</li></ol>
       </div>
       <div id="online-status" class="online-status"></div>

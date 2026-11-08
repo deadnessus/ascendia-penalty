@@ -47,6 +47,50 @@ export function ensurePeer() {
   return loading;
 }
 
+// ---- Serverless mode: players swap two codes by hand (WhatsApp etc.). No matchmaking server needed.
+const ICE = PEER_OPTS.config;
+const b64 = (u8) => btoa(String.fromCharCode(...u8));
+const unb64 = (t) => Uint8Array.from(atob(t), (c) => c.charCodeAt(0));
+async function pack(desc) {
+  const json = JSON.stringify({ t: desc.type, s: desc.sdp });
+  const raw = new TextEncoder().encode(json);
+  if (typeof CompressionStream === 'function') {
+    try { const out = await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer(); return 'Z' + b64(new Uint8Array(out)); } catch (e) { /* fall through */ }
+  }
+  return 'P' + b64(raw);
+}
+async function unpack(text) {
+  const t = String(text || '').replace(/\s+/g, '');
+  if (t.length < 20) throw err('bad-code', 'empty code');
+  try {
+    let raw = unb64(t.slice(1));
+    if (t[0] === 'Z') raw = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    else if (t[0] !== 'P') throw 0;
+    const o = JSON.parse(new TextDecoder().decode(raw));
+    return { type: o.t, sdp: o.s };
+  } catch (e) { throw err('bad-code', 'invalid code'); }
+}
+const gathered = (pc, ms = 5000) => new Promise((res) => {
+  if (pc.iceGatheringState === 'complete') return res();
+  const done = () => { clearTimeout(to); pc.removeEventListener('icegatheringstatechange', ch); res(); };
+  const ch = () => { if (pc.iceGatheringState === 'complete') done(); };
+  const to = setTimeout(done, ms);
+  pc.addEventListener('icegatheringstatechange', ch);
+});
+// Looks like a PeerJS DataConnection to Net._attach
+class ManualConn {
+  constructor(pc, dc) {
+    this.pc = pc; this.dc = dc; this.peerConnection = pc; this.h = {};
+    dc.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch (x) { return; } this._e('data', m); };
+    dc.onclose = () => this._e('close'); dc.onerror = () => this._e('error');
+  }
+  get open() { return this.dc.readyState === 'open'; }
+  on(ev, f) { (this.h[ev] ||= []).push(f); return this; }
+  _e(ev, ...a) { (this.h[ev] || []).slice().forEach((f) => f(...a)); }
+  send(o) { this.dc.send(JSON.stringify(o)); }
+  close() { try { this.dc.close(); } catch (e) {} try { this.pc.close(); } catch (e) {} }
+}
+
 export class Net {
   constructor() { this.peer = null; this.conn = null; this.q = {}; this.w = {}; this.closed = false; this.onclose = () => {}; this.onmsg = () => {}; this.onstatus = () => {}; }
   get available() { return typeof window.Peer === 'function'; }
@@ -144,7 +188,36 @@ export class Net {
     throw last || err('cancelled');
   }
 
+  // Host: returns the code to send to the friend.
+  async hostManual() {
+    if (typeof RTCPeerConnection !== 'function') throw err('browser-incompatible');
+    const pc = new RTCPeerConnection(ICE); this._pc = pc;
+    const dc = pc.createDataChannel('game', { ordered: true });
+    const conn = new ManualConn(pc, dc);
+    dc.onopen = () => { if (this._attach(conn)) this.onconnect && this.onconnect(); };
+    await pc.setLocalDescription(await pc.createOffer());
+    await gathered(pc);
+    return pack(pc.localDescription);
+  }
+  // Host: friend's answer code pasted in.
+  async hostAccept(answer) { await this._pc.setRemoteDescription(await unpack(answer)); }
+  // Guest: host's code pasted in; returns the answer code to send back.
+  async joinManual(offer) {
+    if (typeof RTCPeerConnection !== 'function') throw err('browser-incompatible');
+    const desc = await unpack(offer);
+    const pc = new RTCPeerConnection(ICE); this._pc = pc;
+    pc.ondatachannel = (e) => {
+      const conn = new ManualConn(pc, e.channel);
+      const go = () => { if (this._attach(conn)) this.onconnect && this.onconnect(); };
+      if (e.channel.readyState === 'open') go(); else e.channel.onopen = go;
+    };
+    await pc.setRemoteDescription(desc);
+    await pc.setLocalDescription(await pc.createAnswer());
+    await gathered(pc);
+    return pack(pc.localDescription);
+  }
+
   send(o) { if (this.connected) this.conn.send(o); }
   take(type) { const q = this.q[type]; if (q && q.length) return Promise.resolve(q.shift()); return new Promise((r) => (this.w[type] ||= []).push(r)); }
-  close() { this.closed = true; try { this.conn && this.conn.close(); } catch (e) {} try { this.peer && this.peer.destroy(); } catch (e) {} this.conn = this.peer = null; this.q = {}; this.w = {}; }
+  close() { this.closed = true; try { this.conn && this.conn.close(); } catch (e) {} try { this.peer && this.peer.destroy(); } catch (e) {} try { this._pc && this._pc.close(); } catch (e) {} this.conn = this.peer = this._pc = null; this.q = {}; this.w = {}; }
 }

@@ -14,6 +14,7 @@ python3 -m http.server 8000     # or any static server
 
 ES modules + an import map are used, so it must be served over http (not opened as `file://`).
 Online play uses PeerJS (bundled in `vendor/`) and the free public PeerJS matchmaking server, so both players need internet.
+**No server / network blocks it?** Under *Online Match* open *Can't connect? Play without a server*: the host makes a code, sends it to the friend (WhatsApp etc.), the friend pastes it and sends a reply code back, the host pastes that and the match starts. No matchmaking server is used.
 If creating a room fails, the game retries automatically and shows a *Try again* button with the reason. Networks, ad-blockers
 or VPNs that block `0.peerjs.com` will stop online play; to use your own PeerJS server set
 `window.ASCENDIA_PEER = { host, port, path, secure }` before the game loads.
