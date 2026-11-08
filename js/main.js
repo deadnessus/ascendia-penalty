@@ -310,7 +310,7 @@ function onlineHelp(what, e) {
   else if (embedded) tip = 'Online play does not work inside the claude.ai preview. Open the game from its own web address (GitHub Pages or a local server) on both devices.';
   else if (['network', 'server-error', 'socket-error', 'socket-closed', 'timeout', 'disconnected'].includes(t)) tip = 'The matchmaking server could not be reached (it may be busy, or blocked by this network / an ad-blocker / a VPN). Wait a few seconds and try again, or switch network (e.g. Wi-Fi ↔ mobile data).';
   else tip = 'Check your connection and try again.';
-  return `⚠ Could not ${what} <small>(${t})</small>.<br>${tip}${retry}`;
+  return `⚠ Could not ${what} <small>(${t})</small>.<br>${tip}${retry}<br><b>Still not working?</b> Open “Can't connect? Play without a server” just above and swap codes with your friend.`;
 }
 function netStatus(base) {
   return (kind, n, total) => {
@@ -323,6 +323,50 @@ const mark = (ids, active) => ids.forEach((id, i) => { const el = $('#' + id); e
 $('#online-back').onclick = () => { if (net) { net.close(); net = null; } if (!$('#on-choose').classList.contains('hidden')) showScreen('main'); else onlineStep('choose'); };
 $('#btn-join-step').onclick = () => { sound.init(); onlineStep('join'); mark(['j1', 'j2', 'j3'], -1); $('#join-code').focus(); };
 $('#btn-copy').onclick = async () => { const c = $('#host-code').textContent; try { await navigator.clipboard.writeText(c); setOnlineStatus('Code copied!'); } catch { setOnlineStatus('Select the code and copy it.'); } };
+async function hostConnected(me) {
+  mark(['h1', 'h2', 'h3'], 2); setOnlineStatus('Friend connected! Starting…'); sendHello();
+  const h = await me.take('hello');
+  if (net !== me) return;
+  const mine = buildTeam(sel.a); mine.celPref = { sel: sel.cel, sig: sel.sig };
+  const theirs = h.team; theirs.celPref = h.pref;
+  me.send({ t: 'start', shots: opts.shots });
+  startMatch({ teams: [mine, theirs], mode: 'online', mySide: 0, shots: opts.shots });
+}
+async function guestConnected(me) {
+  mark(['j1', 'j2', 'j3'], 1); sendHello(); setOnlineStatus('Connected! Waiting for the host to start…');
+  const h = await me.take('hello'); const s = await me.take('start');
+  if (net !== me) return;
+  mark(['j1', 'j2', 'j3'], 2);
+  const mine = buildTeam(sel.a); mine.celPref = { sel: sel.cel, sig: sel.sig };
+  const theirs = h.team; theirs.celPref = h.pref;
+  startMatch({ teams: [theirs, mine], mode: 'online', mySide: 1, shots: s.shots });
+}
+// ---- serverless mode (swap codes by hand)
+const copyText = async (t, ok) => { try { await navigator.clipboard.writeText(t); setOnlineStatus(ok); } catch { setOnlineStatus('Select the code and copy it by hand.'); } };
+const manualErr = (e) => setOnlineStatus(e && e.type === 'bad-code' ? '⚠ That code is not valid. Paste the whole code, exactly as it was sent.' : `⚠ ${e && e.message || e}`);
+$('#mh-make').onclick = async () => {
+  try {
+    sound.init(); if (net) net.close(); const me = net = new Net(); me.onclose = onlineDown;
+    setOnlineStatus('Making your code…'); $('#mh-offer').value = await me.hostManual();
+    me.onconnect = () => hostConnected(me);
+    setOnlineStatus('Send the code to your friend, then paste their reply below.');
+  } catch (e) { manualErr(e); }
+};
+$('#mh-copy').onclick = () => copyText($('#mh-offer').value, 'Code copied! Send it to your friend.');
+$('#mh-go').onclick = async () => {
+  try { if (!net || !net._pc) return setOnlineStatus('Press “Make my code” first.'); setOnlineStatus('Connecting…'); await net.hostAccept($('#mh-answer').value); }
+  catch (e) { manualErr(e); }
+};
+$('#mj-make').onclick = async () => {
+  try {
+    sound.init(); if (net) net.close(); const me = net = new Net(); me.onclose = onlineDown;
+    setOnlineStatus('Making your reply…'); $('#mj-answer').value = await me.joinManual($('#mj-offer').value);
+    me.onconnect = () => guestConnected(me);
+    setOnlineStatus('Send the reply back to the host. The game starts by itself.');
+  } catch (e) { if (net) { net.close(); net = null; } manualErr(e); }
+};
+$('#mj-copy').onclick = () => copyText($('#mj-answer').value, 'Reply copied! Send it to the host.');
+
 async function hostRoom() {
   sound.init(); onlineStep('host'); $('#host-code').textContent = '·····'; mark(['h1', 'h2', 'h3'], 0);
   if (net) net.close(); const me = net = new Net(); net.onclose = onlineDown; net.onstatus = netStatus('Creating your room');
@@ -332,18 +376,10 @@ async function hostRoom() {
     if (net !== me) return;
     $('#host-code').textContent = code; mark(['h1', 'h2', 'h3'], 1);
     setOnlineStatus('Waiting for your friend to enter the code…');
-    me.onconnect = async () => {
-      mark(['h1', 'h2', 'h3'], 2); setOnlineStatus('Friend connected! Starting…'); sendHello();
-      const h = await me.take('hello');
-      if (net !== me) return;
-      const mine = buildTeam(sel.a); mine.celPref = { sel: sel.cel, sig: sel.sig };
-      const theirs = h.team; theirs.celPref = h.pref;
-      me.send({ t: 'start', shots: opts.shots });
-      startMatch({ teams: [mine, theirs], mode: 'online', mySide: 0, shots: opts.shots });
-    };
+    me.onconnect = () => hostConnected(me);
   } catch (e) {
     if (net !== me) return;
-    mark(['h1', 'h2', 'h3'], -1); setOnlineStatus(onlineHelp('create a room', e));
+    mark(['h1', 'h2', 'h3'], -1); setOnlineStatus(onlineHelp('create a room', e)); $('#host-manual').open = true;
     const b = $('#btn-online-retry'); if (b) b.onclick = hostRoom;
   }
 }
@@ -356,16 +392,10 @@ async function joinRoom() {
   try {
     await me.join(code);
     if (net !== me) return;
-    mark(['j1', 'j2', 'j3'], 1); sendHello(); setOnlineStatus('Connected! Waiting for the host to start…');
-    const h = await me.take('hello'); const s = await me.take('start');
-    if (net !== me) return;
-    mark(['j1', 'j2', 'j3'], 2);
-    const mine = buildTeam(sel.a); mine.celPref = { sel: sel.cel, sig: sel.sig };
-    const theirs = h.team; theirs.celPref = h.pref;
-    startMatch({ teams: [theirs, mine], mode: 'online', mySide: 1, shots: s.shots });
+    await guestConnected(me);
   } catch (e) {
     if (net !== me) return;
-    mark(['j1', 'j2', 'j3'], -1); setOnlineStatus(onlineHelp('join', e));
+    mark(['j1', 'j2', 'j3'], -1); setOnlineStatus(onlineHelp('join', e)); $('#join-manual').open = true;
     const b = $('#btn-online-retry'); if (b) b.onclick = joinRoom;
   }
 }
