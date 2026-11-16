@@ -1,0 +1,1 @@
+{ "eventos": ["partida_iniciada", "partida_terminada", "partida_abandonada", "revanche", "online_conectou"] }

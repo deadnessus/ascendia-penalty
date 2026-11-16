@@ -6,6 +6,9 @@ import { Sound } from './audio.js';
 import { Net, ensurePeer } from './net.js';
 import { SPOT, kickOf, resolveShot, aiShot, aiDive, makeDive } from './logic.js';
 
+// Aviso anônimo para a medição do queres.games (nunca dá erro; sem o site, não faz nada). Ver CLAUDE.md.
+const evento = (nome, dados) => { try { if (window.QG && window.QG.evento) window.QG.evento(nome, dados); } catch (e) { /* medição nunca atrapalha o jogo */ } };
+
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const V3 = THREE.Vector3;
@@ -330,6 +333,7 @@ async function hostConnected(me) {
   const mine = buildTeam(sel.a); mine.celPref = { sel: sel.cel, sig: sel.sig };
   const theirs = h.team; theirs.celPref = h.pref;
   me.send({ t: 'start', shots: opts.shots });
+  evento('online_conectou', { papel: 'anfitriao' });
   startMatch({ teams: [mine, theirs], mode: 'online', mySide: 0, shots: opts.shots });
 }
 async function guestConnected(me) {
@@ -339,6 +343,7 @@ async function guestConnected(me) {
   mark(['j1', 'j2', 'j3'], 2);
   const mine = buildTeam(sel.a); mine.celPref = { sel: sel.cel, sig: sel.sig };
   const theirs = h.team; theirs.celPref = h.pref;
+  evento('online_conectou', { papel: 'convidado' });
   startMatch({ teams: [theirs, mine], mode: 'online', mySide: 1, shots: s.shots });
 }
 // ---- serverless mode (swap codes by hand)
@@ -500,6 +505,7 @@ $('#pause-quit').onclick = () => { $('#pause').classList.add('hidden'); paused =
 
 // ---------------------------------------------------------------- match engine
 function startMatch(cfg) {
+  evento('partida_iniciada', { modo: cfg.mode });
   if (match) match.dead = true;
   match = { ...cfg, score: [0, 0], taken: [0, 0], marks: [[], []], round: 0, dead: false, finished: false };
   $$('.screen').forEach(s => s.classList.remove('active'));
@@ -513,6 +519,7 @@ function startMatch(cfg) {
   return m;
 }
 function quitMatch() {
+  if (match && !match.finished) evento('partida_abandonada', { modo: match.mode });
   if (match) { match.dead = true; } paused = false;
   if (net) { net.close(); net = null; }
   if (input.rej) { input.mode = null; }
@@ -543,6 +550,7 @@ async function finish(w) {
   const m = match; m.finished = true; await sleep(1.0);
   document.body.classList.remove('cut'); showKickUI(false);
   const me = m.mode === 'cpu' ? 0 : m.mySide, won = w === me;
+  evento('partida_terminada', { modo: m.mode, resultado: won ? 'ganhou' : 'perdeu' });
   $('#res-title').textContent = won ? 'YOU WIN THE SHOOTOUT!' : 'SHOOTOUT LOST';
   $('#res-score').textContent = `${m.teams[0].short} ${m.score[0]} – ${m.score[1]} ${m.teams[1].short}`;
   $('#res-sub').textContent = `${m.teams[w].name} win on penalties.`;
@@ -554,7 +562,7 @@ async function finish(w) {
   const wt = m.teams[w], pl = wt.players[0];
   const fig = makeFigure(figOpts(wt, pl, false)); fig.base = { x: 0, y: 0, z: 4.5, yaw: 0 }; addFig(fig); show = { fig, celId: celFor(wt, pl), t0: T }; menuCamMode = 'main'; menuCam(); camCut();
 }
-$('#btn-rematch').onclick = () => { const m = match; if (!m) return; if (show) { dropFig(show.fig); show = null; } startMatch({ teams: m.teams, mode: m.mode, mySide: m.mySide, shots: m.shots }); };
+$('#btn-rematch').onclick = () => { const m = match; if (!m) return; evento('revanche'); if (show) { dropFig(show.fig); show = null; } startMatch({ teams: m.teams, mode: m.mode, mySide: m.mySide, shots: m.shots }); };
 $('#btn-menu').onclick = () => { if (show) { dropFig(show.fig); show = null; } quitMatch(); };
 
 async function takeKick(side, round) {
