@@ -21,3 +21,20 @@ Regras:
 5. Não altere o jogo para usar eventos sem o pedido de quem manda no jogo.
 
 **Sugestões de melhoria ficam nas issues deste repositório.** Quando alguém (uma pessoa ou uma rotina automática) achar um problema ou uma ideia a partir dos números do site, a sugestão deve virar uma **issue** aqui, escrita em português simples, com: o que foi observado, em qual versão (commit) do jogo, e uma ideia do que mudar. Não faça a mudança sem que alguém aprove a issue.
+
+
+## Skills deste repositório e boas práticas (queres.games)
+
+Use-as: elas têm o passo a passo e um verificador automático.
+- **`preparar-jogo-para-queres-games`**: antes de pedir para publicar, ao começar um jogo ou ao conferir. Rode o verificador e siga o checklist.
+- **`telemetria-queres-games`**: botões com nomes claros e `QG.evento`.
+- **`privacidade-infantil`**: o que nunca coletar (LGPD, crianças), conta de apelido, online sem chat.
+- **`melhorias-por-issues`**: como transformar os números do painel em issues.
+
+## Regras que nunca mudam
+- É um site para **crianças**: sem dado pessoal, sem chat, sem texto livre enviado a servidor, sem rastreadores.
+- **Tudo dentro do jogo**: nada de CDN, Google Fonts ou outro site. Caminhos relativos.
+- **A telemetria é automática pelo site.** Não crie analytics próprio nem importe script de medição.
+- Login e ranking só pela conta do site (`/conta.js`); nada de telas de login próprias.
+- Português do Brasil, linguagem simples (o dono não é programador).
+- **Botões com `id` ou `data-...` claros e estáveis**, sem dado pessoal: o site conta quantas vezes cada botão é usado, pelo nome técnico (nunca pelo texto).
